@@ -25,7 +25,7 @@ type SQLiteStorage struct {
 }
 
 func NewSQLiteStorage() (*SQLiteStorage, error) {
-	db, err := sql.Open("sqlite", "accounts.db")
+	db, err := sql.Open("sqlite", "Bens_DB.db")
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +40,18 @@ func (s *SQLiteStorage) Init() error {
 	if err != nil {
 		return err
 	}
+	err = s.createUsersTable()
+	if err != nil {
+		return err
+	}
+	err = s.createFilesTable()
+	if err != nil {
+		return err
+	}
+	err = s.createFileQueueTable()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -49,6 +61,20 @@ func (s *SQLiteStorage) createAccountTable() error {
 		return err
 	}
 	return nil
+}
+
+func (s *SQLiteStorage) createFileQueueTable() error {
+	query := `
+		CREATE TABLE IF NOT EXISTS file_queue (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			file_id INTEGER NOT NULL,
+			queue_status TEXT NOT NULL,
+			queue_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(file_id) REFERENCES files(id)
+		);
+	`
+	_, err := s.db.Exec(query)
+	return err
 }
 
 func (s *SQLiteStorage) CreateAccount(a *Account) error {

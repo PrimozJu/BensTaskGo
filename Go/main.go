@@ -12,11 +12,11 @@ func main() {
 	}
 
 	if err := store.Init(); err != nil {
-		fmt.Printf("Nigga nekaj pa zdej ne deluje")
+		fmt.Printf("Cannot initialize DB")
 	}
 
 	fmt.Printf("%+v\n", store)
 	server := newAPIServer(":3000", store)
 	server.Run()
-	fmt.Println("Yeah buddy!")
+	fmt.Println("All good!")
 }

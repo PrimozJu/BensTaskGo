@@ -55,6 +55,9 @@ func (s *APIServer) Run() {
 	router.HandleFunc("/account/{id}", withJWTAuth(makeHTTPhandler(s.handleGetAccount), s.store))
 	router.HandleFunc("/transfer/", makeHTTPhandler(s.handleTransfer))
 
+	router.HandleFunc("/files", makeHTTPhandler(s.handleFiles))
+	router.HandleFunc("/parse", makeHTTPhandler(s.handleFiles))
+
 	log.Println("Starting server on", s.listenAdress)
 
 	http.ListenAndServe(s.listenAdress, router)
@@ -179,12 +182,6 @@ func withJWTAuth(HandlerFunc http.HandlerFunc, s Storage) http.HandlerFunc {
 		}
 		fmt.Println("Account:", account)
 
-		/* claims := token.Claims.(jwt.MapClaims)
-		if account.Number != claims["accountNumber"] {
-			PermissionDenied(w)
-			return
-		} */
-
 		HandlerFunc(w, r)
 	}
 }
@@ -216,4 +213,91 @@ func CreateJWT(account *Account) (string, error) {
 
 func PermissionDenied(w http.ResponseWriter) {
 	WriteJson(w, http.StatusUnauthorized, apiError{Error: "Permission Denied"})
+}
+
+// Files ---------------------------------------------------------
+func (s *APIServer) handleFiles(w http.ResponseWriter, r *http.Request) error {
+	if r.Method == http.MethodGet {
+		return s.handleFileGet(w, r)
+	} else if r.Method == http.MethodPost {
+		return s.handleUploadFile(w, r)
+	}
+
+	return fmt.Errorf("Method not allowed")
+}
+
+func (s *APIServer) handleUploadFile(w http.ResponseWriter, r *http.Request) error {
+
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		return fmt.Errorf("error parsing form: %v", err)
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		return fmt.Errorf("error retrieving the file: %v", err)
+	}
+	defer file.Close()
+
+	buf := make([]byte, 512)
+	_, err = file.Read(buf)
+	if err != nil {
+		return fmt.Errorf("error reading file: %v", err)
+	}
+
+	file.Seek(0, 0)
+
+	mimeType := http.DetectContentType(buf)
+	if mimeType != "application/pdf" {
+		http.Error(w, "The uploaded file is not a PDF", http.StatusBadRequest)
+		return nil
+	}
+
+	UserID := r.Header.Get("Authorization")
+	if UserID == "" {
+		WriteJson(w, http.StatusUnauthorized, apiError{Error: "No user ID found in request"})
+		return fmt.Errorf("No user ID found in request")
+	}
+	userIDInt, err := strconv.Atoi(UserID)
+	if err != nil {
+		WriteJson(w, http.StatusBadRequest, apiError{Error: "Invalid user ID"})
+		return fmt.Errorf("Invalid user ID")
+	}
+
+	// Retrieve the file from the request
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		return fmt.Errorf("error retrieving the file: %v", err)
+	}
+	defer file.Close()
+
+	// Save the file to the database
+	err = s.store.SaveFileToDB(userIDInt, file, header.Filename)
+	if err != nil {
+		return fmt.Errorf("error saving file to the database: %v", err)
+	}
+
+	// Respond with success
+	return WriteJson(w, http.StatusOK, map[string]string{
+		"message": "All good in the hood",
+	})
+}
+
+func (s *APIServer) handleFileGet(w http.ResponseWriter, r *http.Request) error {
+	UserID := r.Header.Get("Authorization")
+	if UserID == "" {
+		WriteJson(w, http.StatusUnauthorized, apiError{Error: "No user ID found in request"})
+		return fmt.Errorf("No user ID found in request")
+	}
+	userIDInt, err := strconv.Atoi(UserID)
+	if err != nil {
+		WriteJson(w, http.StatusBadRequest, apiError{Error: "Invalid user ID"})
+		return fmt.Errorf("Invalid user ID")
+	}
+	files, err := s.store.getFiles(userIDInt)
+	if err != nil {
+		WriteJson(w, http.StatusInternalServerError, apiError{Error: err.Error()})
+	}
+	WriteJson(w, http.StatusOK, files)
+	return nil
 }
