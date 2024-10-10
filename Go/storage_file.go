@@ -7,17 +7,17 @@ import (
 	"io"
 	"log"
 	"mime/multipart"
-	"time"
 
 	_ "modernc.org/sqlite"
 )
 
-func (s *SQLiteStorage) createFilesTable() error {
+func (s *SQLiteStorage) createTables() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS files (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		file_hash TEXT UNIQUE NOT NULL,
 		file_content BLOB NOT NULL,
+		original_name TEXT NOT NULL,
 		upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -41,23 +41,6 @@ func (s *SQLiteStorage) createFilesTable() error {
 	`
 	_, err := s.db.Exec(query)
 	return err
-}
-
-func scanIntoFile(rows *sql.Rows) (*File, error) {
-	f := new(File)
-	err := rows.Scan(&f.ID, &f.UserID, &f.OriginalName, &f.FileContentHash, &f.UploadDate, &f.ParseStatus, &f.ParseResult, &f.ImportStatus)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
-
-type FileMetadata struct {
-	OriginalName    string
-	UploadDate      time.Time
-	FileContentHash string
-	QueueStatus     sql.NullString
-	QueueUpdateAt   sql.NullTime
 }
 
 func (s *SQLiteStorage) getFiles(userID int) ([]*FileMetadata, error) {
@@ -116,6 +99,7 @@ func (s *SQLiteStorage) SaveFileToDB(userID int, file multipart.File, fileName s
 	}
 
 	if existingFileID > 0 {
+		/* dodaj check da nemore 1 user 2x dodat istega fajla */
 		err = s.insertIntoMetadata(existingFileID, userID, fileName)
 		if err != nil {
 			return fmt.Errorf("error saving file metadata: %v", err)
@@ -123,7 +107,7 @@ func (s *SQLiteStorage) SaveFileToDB(userID int, file multipart.File, fileName s
 		log.Printf("File already exists in DB. Saved metadata for new upload with existing file.")
 		return nil
 	} else {
-		newFileID, err := s.insertIntoFiles(fileHash, fileContent)
+		newFileID, err := s.insertIntoFiles(fileHash, fileContent, fileName)
 		if err != nil {
 			return fmt.Errorf("error inserting file into database: %v", err)
 		}
@@ -159,15 +143,15 @@ func (s *SQLiteStorage) insertIntoMetadata(existingFileID int, userID int, fileN
 	if err != nil {
 		return fmt.Errorf("error saving file metadata: %v", err)
 	}
-	log.Println("File already exists in DB. Saved metadata for new upload with existing file.")
+	log.Println("file already exists in DB. Saved metadata for new upload with existing file.")
 	return nil
 }
 
-func (s *SQLiteStorage) insertIntoFiles(fileHash string, fileContent []byte) (int, error) {
+func (s *SQLiteStorage) insertIntoFiles(fileHash string, fileContent []byte, fileName string) (int, error) {
 	insertFileQuery := `
-    INSERT INTO files (file_hash, file_content, upload_date)
-    VALUES (?, ?, datetime('now'));`
-	result, err := s.db.Exec(insertFileQuery, fileHash, fileContent)
+    INSERT INTO files (file_hash, file_content, original_name, upload_date)
+    VALUES (?, ?,  ?, datetime('now'));`
+	result, err := s.db.Exec(insertFileQuery, fileHash, fileContent, fileName)
 
 	if err != nil {
 		return 0, fmt.Errorf("error inserting file into database: %v", err)
@@ -177,9 +161,10 @@ func (s *SQLiteStorage) insertIntoFiles(fileHash string, fileContent []byte) (in
 	if err != nil {
 		return 0, fmt.Errorf("error getting last insert ID: %v", err)
 	}
-	log.Println("File inserted with ID: %d", fileID)
+	log.Printf("file inserted with ID: %d", fileID)
 	return int(fileID), nil
 }
+
 func (s *SQLiteStorage) insertIntoFileQueue(fileID int) error {
 	insertFileQuery := `
 	INSERT INTO file_queue (file_id, queue_status, queue_updated_at)
@@ -189,6 +174,6 @@ func (s *SQLiteStorage) insertIntoFileQueue(fileID int) error {
 	if err != nil {
 		return fmt.Errorf("error inserting file into database: %v", err)
 	}
-	log.Println("File inserted into queue with ID: %d", fileID)
+	log.Printf("file inserted into queue with ID: %d", fileID)
 	return nil
 }

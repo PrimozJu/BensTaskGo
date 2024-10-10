@@ -12,4 +12,5 @@ func (s *SQLiteStorage) createUsersTable() error {
 	`
 	_, err := s.db.Exec(query)
 	return err
+
 }

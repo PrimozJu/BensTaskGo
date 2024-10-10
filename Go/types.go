@@ -1,7 +1,7 @@
 package main
 
 import (
-	"math/rand"
+	"database/sql"
 	"time"
 )
 
@@ -13,24 +13,6 @@ type TransferRequest struct {
 type CreateAccountRequest struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
-}
-
-type Account struct {
-	ID        int64     `json:"id"`
-	FirstName string    `json:"firstName"`
-	LastName  string    `json:"lastName"`
-	Number    int64     `json:"number"`
-	Balance   int64     `json:"balance"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
-// new task ---------------------------------------------------------
-type User struct {
-	ID        int       `json:"id" gorm:"primaryKey;autoIncrement"`
-	Username  string    `json:"username" gorm:"size:100;not null"`
-	Email     string    `json:"email" gorm:"size:100;unique;not null"`
-	Password  string    `json:"password" gorm:"size:255;not null"`
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 }
 
 type File struct {
@@ -51,13 +33,10 @@ type FileQueue struct {
 	QueueUpdatedAt time.Time `json:"queue_updated_at" gorm:"autoUpdateTime"`
 }
 
-//---------------------------------------------------------
-
-func NewAccount(firstName string, lastName string, number string, balance int64) *Account {
-	return &Account{
-		FirstName: firstName,
-		LastName:  lastName,
-		Number:    int64(rand.Intn(100000)),
-		CreatedAt: time.Now().UTC(),
-	}
+type FileMetadata struct {
+	OriginalName    string
+	UploadDate      time.Time
+	FileContentHash string
+	QueueStatus     sql.NullString
+	QueueUpdateAt   sql.NullTime
 }

@@ -19,4 +19,5 @@ func main() {
 	server := newAPIServer(":3000", store)
 	server.Run()
 	fmt.Println("All good!")
+
 }
