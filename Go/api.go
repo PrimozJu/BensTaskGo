@@ -28,7 +28,6 @@ type apiError struct {
 func makeHTTPhandler(fn apiFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := fn(w, r); err != nil {
-			/* http.Error(w, err.Error(), http.StatusInternalServerError) */
 			WriteJson(w, http.StatusInternalServerError, apiError{Error: err.Error()})
 		}
 	}
@@ -58,15 +57,6 @@ func (s *APIServer) Run() {
 	http.ListenAndServe(s.listenAdress, router)
 
 }
-
-/* func getId(r *http.Request) (int64, error) {
-	id_str := mux.Vars(r)["id"]
-	id, err := strconv.Atoi(id_str)
-	if err != nil {
-		return 0, fmt.Errorf("invalid ID %s, %w ", id_str, err)
-	}
-	return int64(id), nil
-} */
 
 func PermissionDenied(w http.ResponseWriter) {
 	WriteJson(w, http.StatusUnauthorized, apiError{Error: "Permission Denied"})

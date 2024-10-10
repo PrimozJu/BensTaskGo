@@ -22,19 +22,50 @@ func NewSQLiteStorage() (*SQLiteStorage, error) {
 }
 
 func (s *SQLiteStorage) Init() error {
-	err := s.createUsersTable()
-	if err != nil {
-		return err
-	}
-	err = s.createTables()
+
+	err := s.createTables()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *SQLiteStorage) createFileQueueTable() error {
+func (s *SQLiteStorage) createTables() error { /* could be seperate funcs */
 	query := `
+	CREATE TABLE IF NOT EXISTS files (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		file_hash TEXT UNIQUE NOT NULL,
+		file_content BLOB NOT NULL,
+		original_name TEXT NOT NULL,
+		upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+	CREATE TABLE IF NOT EXISTS file_metadata (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		original_name TEXT NOT NULL,
+		file_id INTEGER NOT NULL,
+		upload_date Timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		parsing_result INT default 0,
+		FOREIGN KEY (file_id) REFERENCES files(id),
+		FOREIGN KEY (user_id) REFERENCES users(id),
+		FOREIGN KEY (parsing_result) REFERENCES parse_result(id)
+);
+
+	CREATE TABLE IF NOT EXISTS parse_result (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		file_id INTEGER NOT NULL,
+		parse_status TEXT NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS file_queue (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			file_id INTEGER NOT NULL,
+			queue_status TEXT NOT NULL,
+			queue_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(file_id) REFERENCES files(id)
+		);
+
 		CREATE TABLE IF NOT EXISTS file_queue (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			file_id INTEGER NOT NULL,
@@ -42,6 +73,7 @@ func (s *SQLiteStorage) createFileQueueTable() error {
 			queue_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(file_id) REFERENCES files(id)
 		);
+
 	`
 	_, err := s.db.Exec(query)
 	return err
